@@ -105,3 +105,6 @@ export default function fetchStream(options = {}, callback) {
 		});
 	}
 }
+
+// expose global for apps without modules
+window.fetchStream = fetchStream;

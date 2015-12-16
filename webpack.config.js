@@ -1,10 +1,14 @@
 const path = require('path');
 const webpack = require('webpack');
 
-// TODO production config
+const NODE_ENV = process.env.NODE_ENV || 'development';
+const defines = new webpack.DefinePlugin({
+	'process.env': {
+		'NODE_ENV': JSON.stringify(NODE_ENV),
+	},
+});
 
-module.exports = {
-	devtool: 'source-map',
+const config = {
 	entry: [
 		'webpack-hot-middleware/client',
 		'./demo/index',
@@ -17,6 +21,7 @@ module.exports = {
 	plugins: [
 		new webpack.HotModuleReplacementPlugin(),
 		new webpack.NoErrorsPlugin(),
+		defines,
 	],
 	module: {
 		loaders: [
@@ -36,3 +41,21 @@ module.exports = {
 		modulesDirectories: ['node_modules', 'demo', 'src'],
 	},
 };
+
+if (NODE_ENV === 'development') {
+	config.devtool = 'source-map';
+}
+
+if (NODE_ENV === 'production') {
+	config.entry = ['./src/index'];
+	config.output = {
+		path: path.join(__dirname, 'dist'),
+		filename: 'fetchstream.js',
+	};
+	config.plugins = [
+		new webpack.optimize.OccurenceOrderPlugin(),
+		defines,
+	];
+}
+
+module.exports = config;
