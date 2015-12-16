@@ -35,6 +35,7 @@ function makeConcat(isBuffer) {
 
 function makeParser(callback, isBuffer) {
 	let prev = null;
+	let index = 0;
 	const decode = makeDecoder(isBuffer);
 	const concat = makeConcat(isBuffer);
 	return (data) => {
@@ -44,30 +45,33 @@ function makeParser(callback, isBuffer) {
 		}
 
 		// read line until CRLF
-		let str = '';
+		let header = '';
 		for (let i = 0; i + 1 < chunk.length; i++) {
 			if (chunk[i] === CR && chunk[i + 1] === LF) {
 				break;
 			}
-			str += String.fromCharCode(chunk[i]);
+			header += String.fromCharCode(chunk[i]);
 		}
 
-		const headerSize = str.length + 2;
-		const size = parseInt(str, 16);
+		const headerSize = header.length + 2;
+		// ignore chunk extensions
+		const i = header.indexOf(';');
+		const size = parseInt(i >= 0 ? header.substr(0, i) : header, 16);
 		const chunkSize = headerSize + size + 2;
 
 		if (size === 0) {
-			return;
+			return undefined;
 		}
 
 		if (chunk.length >= chunkSize) {
 			prev = chunkSize < chunk.length ? chunk.slice(chunkSize) : null;
 			const head = chunk.slice(headerSize, size);
 			const text = decode(head);
-			callback(text);
-		} else {
-			prev = chunk;
+			return callback(text, index++);
 		}
+
+		prev = chunk;
+		return undefined;
 	};
 }
 
@@ -77,13 +81,13 @@ function pump(reader, handler) {
 		if (result.done) {
 			return;
 		}
-		handler(result.value);
+		if (handler(result.value) === false) {
+			// cancelling
+			return;
+		}
 		pump(reader, handler);
 	});
 }
-
-// TODO support cancel, e.g. callback returns false
-// TODO support POST method
 
 export default function fetchStream(options = {}, callback) {
 	const url = typeof options === 'string' ? options : options.url || options.path;
@@ -96,11 +100,12 @@ export default function fetchStream(options = {}, callback) {
 	} else {
 		const parser = makeParser(callback, true);
 		options.path = url;
-		http.get(options, (res) => {
+		const req = http.get(options, (res) => {
 			res.on('data', (buf) => {
-				parser(buf);
-			});
-			res.on('end', () => {
+				if (parser(buf) === false) {
+					// cancelling
+					req.abort();
+				}
 			});
 		});
 	}

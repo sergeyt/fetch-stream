@@ -4441,6 +4441,7 @@
 
 	function makeParser(callback, isBuffer) {
 		var prev = null;
+		var index = 0;
 		var decode = makeDecoder(isBuffer);
 		var concat = makeConcat(isBuffer);
 		return function (data) {
@@ -4450,30 +4451,33 @@
 			}
 
 			// read line until CRLF
-			var str = '';
-			for (var i = 0; i + 1 < chunk.length; i++) {
-				if (chunk[i] === CR && chunk[i + 1] === LF) {
+			var header = '';
+			for (var _i = 0; _i + 1 < chunk.length; _i++) {
+				if (chunk[_i] === CR && chunk[_i + 1] === LF) {
 					break;
 				}
-				str += String.fromCharCode(chunk[i]);
+				header += String.fromCharCode(chunk[_i]);
 			}
 
-			var headerSize = str.length + 2;
-			var size = parseInt(str, 16);
+			var headerSize = header.length + 2;
+			// ignore chunk extensions
+			var i = header.indexOf(';');
+			var size = parseInt(i >= 0 ? header.substr(0, i) : header, 16);
 			var chunkSize = headerSize + size + 2;
 
 			if (size === 0) {
-				return;
+				return undefined;
 			}
 
 			if (chunk.length >= chunkSize) {
 				prev = chunkSize < chunk.length ? chunk.slice(chunkSize) : null;
 				var head = chunk.slice(headerSize, size);
 				var text = decode(head);
-				callback(text);
-			} else {
-				prev = chunk;
+				return callback(text, index++);
 			}
+
+			prev = chunk;
+			return undefined;
 		};
 	}
 
@@ -4483,13 +4487,13 @@
 			if (result.done) {
 				return;
 			}
-			handler(result.value);
+			if (handler(result.value) === false) {
+				// cancelling
+				return;
+			}
 			pump(reader, handler);
 		});
 	}
-
-	// TODO support cancel, e.g. callback returns false
-	// TODO support POST method
 
 	function fetchStream() {
 		var options = arguments.length <= 0 || arguments[0] === undefined ? {} : arguments[0];
@@ -4506,11 +4510,13 @@
 			(function () {
 				var parser = makeParser(callback, true);
 				options.path = url;
-				_streamHttp2.default.get(options, function (res) {
+				var req = _streamHttp2.default.get(options, function (res) {
 					res.on('data', function (buf) {
-						parser(buf);
+						if (parser(buf) === false) {
+							// cancelling
+							req.abort();
+						}
 					});
-					res.on('end', function () {});
 				});
 			})();
 		}

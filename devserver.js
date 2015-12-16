@@ -32,7 +32,7 @@ app.get('/stream', (req, res) => {
 	function chunk(i) {
 		const text = randomWords(rnd(100, 500));
 		const html = `<html><h1>chunk #${i}</h1><p>${text}</p></html>`;
-		const data = `00${html.length.toString(16)}\r\n${html}\r\n`;
+		const data = `00${html.length.toString(16)};name=value\r\n${html}\r\n`;
 		res.write(data);
 		if (i < 100) {
 			setTimeout(() => {
