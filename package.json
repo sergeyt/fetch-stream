@@ -1,0 +1,43 @@
+{
+  "name": "fetch-stream",
+  "version": "0.1.0",
+  "description": "Easy fetch of HTTP/1.1 chunked content.",
+  "main": "lib/index.js",
+  "scripts": {
+		"start": "node devserver.js",
+    "lint": "eslint --ext .js .",
+    "babel": "babel src --out-dir lib",
+    "pack": "webpack --config webpack.config.js",
+    "test": "npm run lint"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/sergeyt/fetch-stream.git"
+  },
+  "keywords": [
+    "fetch",
+    "chunked",
+    "http",
+    "stream"
+  ],
+  "author": "Sergey Todyshev <stodyshev@gmail.com>",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/sergeyt/fetch-stream/issues"
+  },
+  "homepage": "https://github.com/sergeyt/fetch-stream#readme",
+	"devDependencies": {
+    "babel": "^6.3.13",
+    "babel-core": "^6.3.17",
+    "babel-eslint": "^5.0.0-beta6",
+    "babel-loader": "^6.2.0",
+    "babel-preset-es2015": "^6.3.13",
+    "eslint": "^1.10.3",
+    "eslint-config-airbnb": "^2.1.1",
+		"eslint-plugin-react": "^3.11.3",
+    "express": "^4.13.3",
+    "webpack": "^1.12.9",
+    "webpack-dev-middleware": "^1.4.0",
+    "webpack-hot-middleware": "^2.6.0"
+  }
+}

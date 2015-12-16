@@ -1,3 +1,3 @@
 # fetch-stream
 
-Function to fetch HTTP chuncked stream.
+Easy fetch of HTTP/1.1 chunked content.
