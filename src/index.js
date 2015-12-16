@@ -1,5 +1,8 @@
 let decoder = null;
 
+const CR = '\r'.charCodeAt(0);
+const LF = '\n'.charCodeAt(0);
+
 function makeLoader(callback) {
 	let prev = null;
 	return (data) => {
@@ -15,10 +18,17 @@ function makeLoader(callback) {
 			decoder = new TextDecoder();
 		}
 
-		// TODO read line until CRLF
-		const headerSize = 10;
-		const sizeStr = decoder.decode(chunk.slice(0, 8));
-		const size = parseInt(sizeStr, 16);
+		// read line until CRLF
+		let str = '';
+		for (let i = 0; i + 1 < chunk.length; i++) {
+			if (chunk[i] === CR && chunk[i + 1] === LF) {
+				break;
+			}
+			str += String.fromCharCode(chunk[i]);
+		}
+
+		const headerSize = str.length + 2;
+		const size = parseInt(str, 16);
 		const chunkSize = headerSize + size + 2;
 
 		if (chunk.length >= chunkSize) {

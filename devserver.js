@@ -1,6 +1,7 @@
 process.env.UV_THREADPOOL_SIZE = 100;
 
 const express = require('express');
+const randomWords = require('random-words');
 const webpack = require('webpack');
 const config = require('./webpack.config');
 
@@ -16,6 +17,36 @@ app.use(require('webpack-dev-middleware')(compiler, {
 }));
 
 app.use(require('webpack-hot-middleware')(compiler));
+
+function rnd(min, max) {
+	return Math.floor(Math.random() * (max - min + 1)) + min;
+}
+
+app.get('/stream', (req, res) => {
+	res.writeHead(200, {
+		'Content-Type': 'text/html',
+		'Transfer-Encoding': 'chunked',
+		'Cache-Control': 'no-cache',
+	});
+
+	function chunk(i) {
+		const text = randomWords(rnd(100, 500));
+		const html = `<html><h1>chunk #${i}</h1><p>${text}</p></html>`;
+		const data = `00${html.length.toString(16)}\r\n${html}\r\n`;
+		res.write(data);
+		if (i < 100) {
+			setTimeout(() => {
+				chunk(i + 1);
+			}, 100);
+		} else {
+			res.write('0\r\n\r\n');
+		}
+	}
+
+	setTimeout(() => {
+		chunk(1);
+	}, 100);
+});
 
 app.listen(port, '0.0.0.0', (err) => {
 	if (err) {

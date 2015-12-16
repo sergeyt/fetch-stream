@@ -1,6 +1,8 @@
 const path = require('path');
 const webpack = require('webpack');
 
+// TODO production config
+
 module.exports = {
 	devtool: 'source-map',
 	entry: [
@@ -8,9 +10,9 @@ module.exports = {
 		'./demo/index',
 	],
 	output: {
-		path: path.join(__dirname, 'demo'),
+		path: path.join(__dirname, 'build'),
 		filename: 'bundle.js',
-		publicPath: '/demo/',
+		publicPath: '/static/',
 	},
 	plugins: [
 		new webpack.HotModuleReplacementPlugin(),
