@@ -8,7 +8,7 @@
     "lint": "eslint --ext .js src",
     "babel": "babel src --out-dir lib",
     "pack": "webpack --config webpack.config.js",
-    "test": "npm run lint"
+    "test": "npm run lint && mocha --compilers js:babel-core/register"
   },
   "repository": {
     "type": "git",
@@ -27,6 +27,7 @@
   },
   "homepage": "https://github.com/sergeyt/fetch-stream#readme",
   "devDependencies": {
+    "ava": "^0.8.0",
     "babel": "^6.3.13",
     "babel-core": "^6.3.17",
     "babel-eslint": "^5.0.0-beta6",
@@ -35,9 +36,12 @@
     "eslint": "^1.10.3",
     "eslint-config-airbnb": "^2.1.1",
     "eslint-plugin-react": "^3.11.3",
+    "expect.js": "^0.3.1",
     "express": "^4.13.3",
     "jquery": "^2.1.4",
+    "mocha": "^2.3.4",
     "random-words": "0.0.1",
+    "smart-buffer": "^1.0.3",
     "webpack": "^1.12.9",
     "webpack-dev-middleware": "^1.4.0",
     "webpack-hot-middleware": "^2.6.0"

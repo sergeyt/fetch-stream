@@ -1,8 +1,10 @@
+const isnode = typeof module !== 'undefined' && module.exports;
+
 const CR = '\r'.charCodeAt(0);
 const LF = '\n'.charCodeAt(0);
 
 export const BUFFER = 'BUFFER';
-export const UINT8ARRAY = 'UINT8ARRAY';
+export const BYTEARRAY = 'BYTEARRAY';
 
 /**
  * Makes UTF8 decoding function.
@@ -14,6 +16,9 @@ function makeDecoder(chunkType) {
 	case BUFFER:
 		return (buf) => buf.toString('utf8');
 	default:
+		if (isnode) {
+			return a => new Buffer(a).toString('utf8');
+		}
 		let decoder = null;
 		return (buf) => {
 			if (!decoder) {
@@ -35,13 +40,17 @@ function makeConcat(chunkType) {
 		return (a, b) => Buffer.concat([a, b]);
 	default:
 		return (a, b) => {
+			// console.log('[%d, %d]', a.length, b.length);
 			const t = new Uint8Array(a.length + b.length);
 			t.set(a);
 			t.set(b, a.length);
+			// console.log('%d: %s', t.length, new Buffer(t).toString('utf8'));
 			return t;
 		};
 	}
 }
+
+// TODO make it faster with state machine
 
 /**
  * Makes parser function to process chunk stream.
@@ -60,20 +69,26 @@ export default function makeParser(callback, chunkType) {
 			prev = null;
 		}
 
-		// read line until CRLF
+		// read header line until CRLF
 		let header = '';
+		let hasHeader = false;
 		for (let i = 0; i + 1 < chunk.length; i++) {
 			if (chunk[i] === CR && chunk[i + 1] === LF) {
+				hasHeader = true;
 				break;
 			}
 			header += String.fromCharCode(chunk[i]);
+		}
+
+		if (!hasHeader) {
+			prev = chunk;
+			return undefined;
 		}
 
 		const headerSize = header.length + 2;
 		// ignore chunk extensions
 		const i = header.indexOf(';');
 		const size = parseInt(i >= 0 ? header.substr(0, i) : header, 16);
-		const chunkSize = headerSize + size + 2;
 
 		if (size === 0) {
 			// notify complete!
@@ -81,9 +96,10 @@ export default function makeParser(callback, chunkType) {
 			return undefined;
 		}
 
+		const chunkSize = headerSize + size + 2;
 		if (chunk.length >= chunkSize) {
 			const next = chunkSize < chunk.length ? chunk.slice(chunkSize) : null;
-			const head = chunk.slice(headerSize, size);
+			const head = chunk.slice(headerSize, headerSize + size);
 			const text = decode(head);
 			if (callback({ value: text, index: index++ }) === false) {
 				return false;
