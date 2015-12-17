@@ -2411,6 +2411,9 @@ function(module, exports, __webpack_require__) {
                 };
 
               default:
+                if (isnode) return function(a) {
+                    return new Buffer(a).toString("utf8");
+                };
                 var decoder = null;
                 return function(buf) {
                     return decoder || (decoder = new TextDecoder()), decoder.decode(buf);
@@ -2431,7 +2434,9 @@ function(module, exports, __webpack_require__) {
 
               default:
                 return function(a, b) {
+                    // console.log('[%d, %d]', a.length, b.length);
                     var t = new Uint8Array(a.length + b.length);
+                    // console.log('%d: %s', t.length, new Buffer(t).toString('utf8'));
                     return t.set(a), t.set(b, a.length), t;
                 };
             }
@@ -2442,33 +2447,57 @@ function(module, exports, __webpack_require__) {
 	 * @param  {Boolean}  [chunkType] Specifies type of input chunks.
 	 */
         function makeParser(callback, chunkType) {
-            function parse(data) {
-                var chunk = data;
-                null !== prev && (chunk = concat(prev, chunk), prev = null);
-                for (var header = "", _i = 0; _i + 1 < chunk.length && (chunk[_i] !== CR || chunk[_i + 1] !== LF); _i++) header += String.fromCharCode(chunk[_i]);
-                var headerSize = header.length + 2, i = header.indexOf(";"), size = parseInt(i >= 0 ? header.substr(0, i) : header, 16), chunkSize = headerSize + size + 2;
-                if (0 === size) // notify complete!
-                return void callback({
-                    done: !0,
-                    index: index
-                });
-                if (chunk.length >= chunkSize) {
-                    var next = chunkSize < chunk.length ? chunk.slice(chunkSize) : null, head = chunk.slice(headerSize, size), text = decode(head);
-                    return callback({
-                        value: text,
-                        index: index++
-                    }) === !1 ? !1 : null !== next ? parse(next) : void 0;
+            function readHeader(chunk) {
+                for (// read header line until CRLF
+                var i = 0; i < chunk.length; i++) {
+                    if (expectLF) {
+                        if (chunk[i] !== LF && // raise error!
+                        console.log("bang"), expectLF = !1, 0 === header.length) continue;
+                        return i + 1;
+                    }
+                    chunk[i] === CR ? expectLF = !0 : header += String.fromCharCode(chunk[i]);
                 }
-                prev = chunk;
+                return -1;
             }
-            var prev = null, index = 0, decode = makeDecoder(chunkType), concat = makeConcat(chunkType);
+            function parse(chunk) {
+                switch (state) {
+                  case STATE_HEADER:
+                    var headerSize = readHeader(chunk);
+                    if (0 > headerSize) return;
+                    // ignore chunk extensions
+                    var i = header.indexOf(";");
+                    if (bodySize = parseInt(i >= 0 ? header.substr(0, i) : header, 16), 0 === bodySize) // notify complete!
+                    return callback({
+                        done: !0,
+                        index: index
+                    });
+                    var chunkSize = headerSize + bodySize;
+                    if (chunk.length < chunkSize) return state = STATE_BODY, void (body = chunk.slice(headerSize));
+                    var head = chunk.slice(headerSize, headerSize + bodySize);
+                    return callback({
+                        value: decode(head),
+                        index: index++
+                    }) === !1 ? !1 : (header = "", chunkSize < chunk.length ? parse(chunk.slice(chunkSize)) : void 0);
+
+                  // incomplete body
+                    default:
+                    if (body.length + chunk.length < bodySize) return void (body = concat(body, chunk));
+                    var h = chunk.slice(0, bodySize - body.length);
+                    return body = concat(body, h), callback({
+                        value: decode(body),
+                        index: index++
+                    }) === !1 ? !1 : (state = STATE_HEADER, header = "", body = null, bodySize = 0, 
+                    parse(chunk.slice(h.length)));
+                }
+            }
+            var decode = makeDecoder(chunkType), concat = makeConcat(chunkType), STATE_HEADER = 0, STATE_BODY = 1, index = 0, state = STATE_HEADER, header = "", body = null, bodySize = 0, expectLF = !1;
             return parse;
         }
         Object.defineProperty(exports, "__esModule", {
             value: !0
         }), exports["default"] = makeParser;
-        var CR = "\r".charCodeAt(0), LF = "\n".charCodeAt(0), BUFFER = exports.BUFFER = "BUFFER";
-        exports.UINT8ARRAY = "UINT8ARRAY";
+        var isnode = "undefined" != typeof module && module.exports, CR = "\r".charCodeAt(0), LF = "\n".charCodeAt(0), BUFFER = exports.BUFFER = "BUFFER";
+        exports.BYTEARRAY = "BYTEARRAY";
     }).call(exports, __webpack_require__(1).Buffer);
 }, /* 17 */
 /***/

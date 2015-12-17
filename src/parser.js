@@ -50,65 +50,100 @@ function makeConcat(chunkType) {
 	}
 }
 
-// TODO make it faster with state machine
-
 /**
  * Makes parser function to process chunk stream.
  * @param  {Function} [callback] The function to process parsed text fragment.
  * @param  {Boolean}  [chunkType] Specifies type of input chunks.
  */
 export default function makeParser(callback, chunkType) {
-	let prev = null;
-	let index = 0;
 	const decode = makeDecoder(chunkType);
 	const concat = makeConcat(chunkType);
-	function parse(data) {
-		let chunk = data;
-		if (prev !== null) {
-			chunk = concat(prev, chunk);
-			prev = null;
-		}
 
+	const STATE_HEADER = 0;
+	const STATE_BODY = 1;
+
+	let index = 0;
+	let state = STATE_HEADER;
+	let header = '';
+	let body = null;
+	let bodySize = 0;
+	let expectLF = false;
+
+	function readHeader(chunk) {
 		// read header line until CRLF
-		let header = '';
-		let hasHeader = false;
-		for (let i = 0; i + 1 < chunk.length; i++) {
-			if (chunk[i] === CR && chunk[i + 1] === LF) {
-				hasHeader = true;
-				break;
+		let i = 0;
+		for (; i < chunk.length; i++) {
+			if (expectLF) {
+				if (chunk[i] !== LF) {
+					// raise error!
+					console.log('bang');
+				}
+				expectLF = false;
+				if (header.length === 0) {
+					continue;
+				}
+				return i + 1;
 			}
-			header += String.fromCharCode(chunk[i]);
+			if (chunk[i] === CR) {
+				expectLF = true;
+			} else {
+				header += String.fromCharCode(chunk[i]);
+			}
 		}
+		return -1;
+	}
 
-		if (!hasHeader) {
-			prev = chunk;
-			return undefined;
-		}
+	function parse(chunk) {
+		switch (state) {
+		case STATE_HEADER:
+			const headerSize = readHeader(chunk);
+			if (headerSize < 0) {
+				return undefined;
+			}
 
-		const headerSize = header.length + 2;
-		// ignore chunk extensions
-		const i = header.indexOf(';');
-		const size = parseInt(i >= 0 ? header.substr(0, i) : header, 16);
+			// ignore chunk extensions
+			const i = header.indexOf(';');
+			bodySize = parseInt(i >= 0 ? header.substr(0, i) : header, 16);
 
-		if (size === 0) {
-			// notify complete!
-			callback({ done: true, index });
-			return undefined;
-		}
+			if (bodySize === 0) {
+				// notify complete!
+				return callback({ done: true, index });
+			}
 
-		const chunkSize = headerSize + size + 2;
-		if (chunk.length >= chunkSize) {
-			const next = chunkSize < chunk.length ? chunk.slice(chunkSize) : null;
-			const head = chunk.slice(headerSize, headerSize + size);
-			const text = decode(head);
-			if (callback({ value: text, index: index++ }) === false) {
+			const chunkSize = headerSize + bodySize;
+			if (chunk.length < chunkSize) {
+				state = STATE_BODY;
+				body = chunk.slice(headerSize);
+				return undefined;
+			}
+
+			const head = chunk.slice(headerSize, headerSize + bodySize);
+			if (callback({ value: decode(head), index: index++ }) === false) {
 				return false;
 			}
-			return next !== null ? parse(next) : undefined;
-		}
 
-		prev = chunk;
-		return undefined;
+			header = '';
+			return chunkSize < chunk.length ? parse(chunk.slice(chunkSize)) : undefined;
+
+			// incomplete body
+		default:
+			if (body.length + chunk.length < bodySize) {
+				body = concat(body, chunk);
+				return undefined;
+			}
+
+			const h = chunk.slice(0, bodySize - body.length);
+			body = concat(body, h);
+			if (callback({ value: decode(body), index: index++ }) === false) {
+				return false;
+			}
+
+			state = STATE_HEADER;
+			header = '';
+			body = null;
+			bodySize = 0;
+			return parse(chunk.slice(h.length));
+		}
 	}
 	return parse;
 }

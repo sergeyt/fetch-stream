@@ -49,6 +49,9 @@ function basicTest(n, size) {
 }
 
 describe('parser', () => {
+	it('chunks3size1', () => {
+		basicTest(3, 1);
+	});
 	it('chunks3size4', () => {
 		basicTest(3, 4);
 	});
