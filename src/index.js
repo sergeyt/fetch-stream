@@ -5,9 +5,15 @@ function isFunction(value) {
 }
 
 const supportFetch = isFunction(global.fetch) && isFunction(global.ReadableByteStream);
+
 const CR = '\r'.charCodeAt(0);
 const LF = '\n'.charCodeAt(0);
 
+/**
+ * Makes UTF8 decoding function.
+ * @param  {Boolean} [isBuffer] Specifies whether the input chunk will be of Buffer type.
+ * @return {Function} The function to decode byte chunks.
+ */
 function makeDecoder(isBuffer) {
 	if (isBuffer) {
 		return (buf) => buf.toString('utf8');
@@ -21,6 +27,11 @@ function makeDecoder(isBuffer) {
 	};
 }
 
+/**
+ * Makes function to concat two byte chunks.
+ * @param  {Boolean} [isBuffer] Specifies whether the input chunk will be of Buffer type.
+ * @return {Function} The function to concat two byte chunks.
+ */
 function makeConcat(isBuffer) {
 	if (isBuffer) {
 		return (a, b) => Buffer.concat([a, b]);
@@ -33,6 +44,11 @@ function makeConcat(isBuffer) {
 	};
 }
 
+/**
+ * Makes parser function to process chunk stream.
+ * @param  {Function} [callback] The function to process parsed text fragment.
+ * @param  {Boolean}  [isBuffer] Specifies whether each chunk will be a Buffer object.
+ */
 function makeParser(callback, isBuffer) {
 	let prev = null;
 	let index = 0;
@@ -42,6 +58,7 @@ function makeParser(callback, isBuffer) {
 		let chunk = data;
 		if (prev !== null) {
 			chunk = concat(prev, chunk);
+			prev = null;
 		}
 
 		// read line until CRLF
@@ -89,6 +106,11 @@ function pump(reader, handler) {
 	});
 }
 
+/**
+ * Fetches resource stream.
+ * @param  {object} [options] URL or options of request.
+ * @param  {function} [callback] The callback to process each chunk in the stream.
+ */
 export default function fetchStream(options = {}, callback) {
 	const url = typeof options === 'string' ? options : options.url || options.path;
 	if (supportFetch) {

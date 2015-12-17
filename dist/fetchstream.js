@@ -4407,9 +4407,15 @@
 	}
 
 	var supportFetch = isFunction(global.fetch) && isFunction(global.ReadableByteStream);
+
 	var CR = '\r'.charCodeAt(0);
 	var LF = '\n'.charCodeAt(0);
 
+	/**
+	 * Makes UTF8 decoding function.
+	 * @param  {Boolean} [isBuffer] Specifies whether the input chunk will be of Buffer type.
+	 * @return {Function} The function to decode byte chunks.
+	 */
 	function makeDecoder(isBuffer) {
 		if (isBuffer) {
 			return function (buf) {
@@ -4425,6 +4431,11 @@
 		};
 	}
 
+	/**
+	 * Makes function to concat two byte chunks.
+	 * @param  {Boolean} [isBuffer] Specifies whether the input chunk will be of Buffer type.
+	 * @return {Function} The function to concat two byte chunks.
+	 */
 	function makeConcat(isBuffer) {
 		if (isBuffer) {
 			return function (a, b) {
@@ -4439,6 +4450,11 @@
 		};
 	}
 
+	/**
+	 * Makes parser function to process chunk stream.
+	 * @param  {Function} [callback] The function to process parsed text fragment.
+	 * @param  {Boolean}  [isBuffer] Specifies whether each chunk will be a Buffer object.
+	 */
 	function makeParser(callback, isBuffer) {
 		var prev = null;
 		var index = 0;
@@ -4448,6 +4464,7 @@
 			var chunk = data;
 			if (prev !== null) {
 				chunk = concat(prev, chunk);
+				prev = null;
 			}
 
 			// read line until CRLF
@@ -4495,6 +4512,11 @@
 		});
 	}
 
+	/**
+	 * Fetches resource stream.
+	 * @param  {object} [options] URL or options of request.
+	 * @param  {function} [callback] The callback to process each chunk in the stream.
+	 */
 	function fetchStream() {
 		var options = arguments.length <= 0 || arguments[0] === undefined ? {} : arguments[0];
 		var callback = arguments[1];
