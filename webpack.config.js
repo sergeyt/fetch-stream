@@ -55,6 +55,14 @@ if (NODE_ENV === 'production') {
 	config.plugins = [
 		new webpack.optimize.OccurenceOrderPlugin(),
 		defines,
+		new webpack.optimize.UglifyJsPlugin({
+			beautify: true,
+			comments: 'all',
+			compressor: {
+				warnings: false,
+				dead_code: true,
+			},
+		}),
 	];
 }
 
