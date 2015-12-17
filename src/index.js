@@ -54,7 +54,7 @@ function makeParser(callback, isBuffer) {
 	let index = 0;
 	const decode = makeDecoder(isBuffer);
 	const concat = makeConcat(isBuffer);
-	return (data) => {
+	function parse(data) {
 		let chunk = data;
 		if (prev !== null) {
 			chunk = concat(prev, chunk);
@@ -83,15 +83,19 @@ function makeParser(callback, isBuffer) {
 		}
 
 		if (chunk.length >= chunkSize) {
-			prev = chunkSize < chunk.length ? chunk.slice(chunkSize) : null;
+			const next = chunkSize < chunk.length ? chunk.slice(chunkSize) : null;
 			const head = chunk.slice(headerSize, size);
 			const text = decode(head);
-			return callback(text, index++);
+			if (callback(text, index++) === false) {
+				return false;
+			}
+			return next !== null ? parse(next) : undefined;
 		}
 
 		prev = chunk;
 		return undefined;
-	};
+	}
+	return parse;
 }
 
 // reads all chunks

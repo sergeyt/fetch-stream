@@ -4460,7 +4460,7 @@
 		var index = 0;
 		var decode = makeDecoder(isBuffer);
 		var concat = makeConcat(isBuffer);
-		return function (data) {
+		function parse(data) {
 			var chunk = data;
 			if (prev !== null) {
 				chunk = concat(prev, chunk);
@@ -4489,15 +4489,19 @@
 			}
 
 			if (chunk.length >= chunkSize) {
-				prev = chunkSize < chunk.length ? chunk.slice(chunkSize) : null;
+				var next = chunkSize < chunk.length ? chunk.slice(chunkSize) : null;
 				var head = chunk.slice(headerSize, size);
 				var text = decode(head);
-				return callback(text, index++);
+				if (callback(text, index++) === false) {
+					return false;
+				}
+				return next !== null ? parse(next) : undefined;
 			}
 
 			prev = chunk;
 			return undefined;
-		};
+		}
+		return parse;
 	}
 
 	// reads all chunks
