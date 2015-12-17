@@ -1,9 +1,13 @@
 import fetch from '../src';
 
 $(() => {
-	fetch('/stream', (page, i) => {
+	fetch('/stream', (result, i) => {
+		if (result.done) {
+			console.log('completed');
+			return false;
+		}
 		const doc = $('<div/>');
-		doc.html(page);
+		doc.html(result);
 		doc.appendTo($('#root'));
 		return i < 50;
 	});

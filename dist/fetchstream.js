@@ -4483,6 +4483,8 @@
 			var chunkSize = headerSize + size + 2;
 
 			if (size === 0) {
+				// notify complete!
+				callback({ done: true }, index);
 				return undefined;
 			}
 
