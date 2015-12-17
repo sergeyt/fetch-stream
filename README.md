@@ -1,3 +1,5 @@
+[![Build Status](https://travis-ci.org/sergeyt/fetch-stream.svg)](https://travis-ci.org/sergeyt/fetch-stream)
+
 # fetch-stream
 
 Easy fetch of HTTP/1.1 chunked content.
