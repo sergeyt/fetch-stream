@@ -1,102 +1,14 @@
 import http from 'stream-http';
+import makeParser, { BUFFER } from './parser';
+
+function noop() {
+}
 
 function isFunction(value) {
 	return typeof value === 'function';
 }
 
 const supportFetch = isFunction(global.fetch) && isFunction(global.ReadableByteStream);
-
-const CR = '\r'.charCodeAt(0);
-const LF = '\n'.charCodeAt(0);
-
-/**
- * Makes UTF8 decoding function.
- * @param  {Boolean} [isBuffer] Specifies whether the input chunk will be of Buffer type.
- * @return {Function} The function to decode byte chunks.
- */
-function makeDecoder(isBuffer) {
-	if (isBuffer) {
-		return (buf) => buf.toString('utf8');
-	}
-	let decoder = null;
-	return (buf) => {
-		if (!decoder) {
-			decoder = new TextDecoder();
-		}
-		return decoder.decode(buf);
-	};
-}
-
-/**
- * Makes function to concat two byte chunks.
- * @param  {Boolean} [isBuffer] Specifies whether the input chunk will be of Buffer type.
- * @return {Function} The function to concat two byte chunks.
- */
-function makeConcat(isBuffer) {
-	if (isBuffer) {
-		return (a, b) => Buffer.concat([a, b]);
-	}
-	return (a, b) => {
-		const t = new Uint8Array(a.length + b.length);
-		t.set(a);
-		t.set(b, a.length);
-		return t;
-	};
-}
-
-/**
- * Makes parser function to process chunk stream.
- * @param  {Function} [callback] The function to process parsed text fragment.
- * @param  {Boolean}  [isBuffer] Specifies whether each chunk will be a Buffer object.
- */
-function makeParser(callback, isBuffer) {
-	let prev = null;
-	let index = 0;
-	const decode = makeDecoder(isBuffer);
-	const concat = makeConcat(isBuffer);
-	function parse(data) {
-		let chunk = data;
-		if (prev !== null) {
-			chunk = concat(prev, chunk);
-			prev = null;
-		}
-
-		// read line until CRLF
-		let header = '';
-		for (let i = 0; i + 1 < chunk.length; i++) {
-			if (chunk[i] === CR && chunk[i + 1] === LF) {
-				break;
-			}
-			header += String.fromCharCode(chunk[i]);
-		}
-
-		const headerSize = header.length + 2;
-		// ignore chunk extensions
-		const i = header.indexOf(';');
-		const size = parseInt(i >= 0 ? header.substr(0, i) : header, 16);
-		const chunkSize = headerSize + size + 2;
-
-		if (size === 0) {
-			// notify complete!
-			callback({ done: true }, index);
-			return undefined;
-		}
-
-		if (chunk.length >= chunkSize) {
-			const next = chunkSize < chunk.length ? chunk.slice(chunkSize) : null;
-			const head = chunk.slice(headerSize, size);
-			const text = decode(head);
-			if (callback(text, index++) === false) {
-				return false;
-			}
-			return next !== null ? parse(next) : undefined;
-		}
-
-		prev = chunk;
-		return undefined;
-	}
-	return parse;
-}
 
 // reads all chunks
 function pump(reader, handler) {
@@ -112,21 +24,65 @@ function pump(reader, handler) {
 	});
 }
 
+function makeStream() {
+	const chunks = [];
+	let cancelled = false;
+	let completed = false;
+	let commit = noop;
+	return {
+		read() {
+			if (chunks.length > 0) {
+				return Promise.resolve(chunks.shift());
+			}
+			if (completed) {
+				return Promise.reject('eof');
+			}
+			// TODO prevent multiple calls?
+			return new Promise((resolve) => {
+				commit = () => {
+					commit = noop;
+					resolve(chunks.shift());
+				};
+			});
+		},
+
+		cancel() {
+			cancelled = true;
+		},
+
+		handler(chunk) {
+			if (cancelled) return cancelled;
+			completed = !!chunk.done;
+			chunks.push(chunk);
+			commit();
+			return undefined;
+		},
+	};
+}
+
+// TODO error handling
+
 /**
  * Fetches resource stream.
  * @param  {object} [options] URL or options of request.
  * @param  {function} [callback] The callback to process each chunk in the stream.
  */
 export default function fetchStream(options = {}, callback) {
+	let cb = callback;
+	let stream = null;
+	if (cb === undefined) {
+		stream = makeStream();
+		cb = stream.handler;
+	}
 	const url = typeof options === 'string' ? options : options.url || options.path;
 	if (supportFetch) {
 		// TODO support Request object?
 		const init = typeof options === 'object' ? options : {};
 		fetch(url, init).then((res) => {
-			pump(res.body.getReader(), makeParser(callback, false));
+			pump(res.body.getReader(), makeParser(cb));
 		});
 	} else {
-		const parser = makeParser(callback, true);
+		const parser = makeParser(cb, BUFFER);
 		options.path = url;
 		const req = http.get(options, (res) => {
 			res.on('data', (buf) => {
@@ -137,6 +93,7 @@ export default function fetchStream(options = {}, callback) {
 			});
 		});
 	}
+	return stream;
 }
 
 // expose global for apps without modules

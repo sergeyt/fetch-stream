@@ -59,9 +59,9 @@
 	 */
 	/* eslint-disable no-proto */
 
-	var base64 = __webpack_require__(22)
-	var ieee754 = __webpack_require__(23)
-	var isArray = __webpack_require__(24)
+	var base64 = __webpack_require__(23)
+	var ieee754 = __webpack_require__(24)
+	var isArray = __webpack_require__(25)
 
 	exports.Buffer = Buffer
 	exports.SlowBuffer = SlowBuffer
@@ -1962,14 +1962,14 @@
 	module.exports = Stream;
 
 	var EE = __webpack_require__(11).EventEmitter;
-	var inherits = __webpack_require__(31);
+	var inherits = __webpack_require__(32);
 
 	inherits(Stream, EE);
-	Stream.Readable = __webpack_require__(28);
-	Stream.Writable = __webpack_require__(30);
-	Stream.Duplex = __webpack_require__(25);
-	Stream.Transform = __webpack_require__(29);
-	Stream.PassThrough = __webpack_require__(27);
+	Stream.Readable = __webpack_require__(29);
+	Stream.Writable = __webpack_require__(31);
+	Stream.Duplex = __webpack_require__(26);
+	Stream.Transform = __webpack_require__(30);
+	Stream.PassThrough = __webpack_require__(28);
 
 	// Backwards-compat with node 0.4.x
 	Stream.Stream = Stream;
@@ -3226,7 +3226,7 @@
 	module.exports = Readable;
 
 	/*<replacement>*/
-	var isArray = __webpack_require__(26);
+	var isArray = __webpack_require__(27);
 	/*</replacement>*/
 
 
@@ -3255,7 +3255,7 @@
 
 
 	/*<replacement>*/
-	var debug = __webpack_require__(37);
+	var debug = __webpack_require__(38);
 	if (debug && debug.debuglog) {
 	  debug = debug.debuglog('stream');
 	} else {
@@ -4387,20 +4387,26 @@
 /* 15 */
 /***/ function(module, exports, __webpack_require__) {
 
-	/* WEBPACK VAR INJECTION */(function(global, Buffer) {'use strict';
+	/* WEBPACK VAR INJECTION */(function(global) {'use strict';
 
 	Object.defineProperty(exports, "__esModule", {
 		value: true
 	});
 	exports.default = fetchStream;
 
-	var _streamHttp = __webpack_require__(16);
+	var _streamHttp = __webpack_require__(17);
 
 	var _streamHttp2 = _interopRequireDefault(_streamHttp);
+
+	var _parser = __webpack_require__(16);
+
+	var _parser2 = _interopRequireDefault(_parser);
 
 	function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
 
 	function _typeof(obj) { return obj && typeof Symbol !== "undefined" && obj.constructor === Symbol ? "symbol" : typeof obj; }
+
+	function noop() {}
 
 	function isFunction(value) {
 		return typeof value === 'function';
@@ -4408,58 +4414,168 @@
 
 	var supportFetch = isFunction(global.fetch) && isFunction(global.ReadableByteStream);
 
+	// reads all chunks
+	function pump(reader, handler) {
+		reader.read().then(function (result) {
+			if (result.done) {
+				return;
+			}
+			if (handler(result.value) === false) {
+				// cancelling
+				return;
+			}
+			pump(reader, handler);
+		});
+	}
+
+	function makeStream() {
+		var chunks = [];
+		var cancelled = false;
+		var completed = false;
+		var commit = noop;
+		return {
+			read: function read() {
+				if (chunks.length > 0) {
+					return Promise.resolve(chunks.shift());
+				}
+				if (completed) {
+					return Promise.reject('eof');
+				}
+				// TODO prevent multiple calls?
+				return new Promise(function (resolve) {
+					commit = function () {
+						commit = noop;
+						resolve(chunks.shift());
+					};
+				});
+			},
+			cancel: function cancel() {
+				cancelled = true;
+			},
+			handler: function handler(chunk) {
+				if (cancelled) return cancelled;
+				completed = !!chunk.done;
+				chunks.push(chunk);
+				commit();
+				return undefined;
+			}
+		};
+	}
+
+	// TODO error handling
+
+	/**
+	 * Fetches resource stream.
+	 * @param  {object} [options] URL or options of request.
+	 * @param  {function} [callback] The callback to process each chunk in the stream.
+	 */
+	function fetchStream() {
+		var options = arguments.length <= 0 || arguments[0] === undefined ? {} : arguments[0];
+		var callback = arguments[1];
+
+		var cb = callback;
+		var stream = null;
+		if (cb === undefined) {
+			stream = makeStream();
+			cb = stream.handler;
+		}
+		var url = typeof options === 'string' ? options : options.url || options.path;
+		if (supportFetch) {
+			// TODO support Request object?
+			var init = (typeof options === 'undefined' ? 'undefined' : _typeof(options)) === 'object' ? options : {};
+			fetch(url, init).then(function (res) {
+				pump(res.body.getReader(), (0, _parser2.default)(cb));
+			});
+		} else {
+			(function () {
+				var parser = (0, _parser2.default)(cb, _parser.BUFFER);
+				options.path = url;
+				var req = _streamHttp2.default.get(options, function (res) {
+					res.on('data', function (buf) {
+						if (parser(buf) === false) {
+							// cancelling
+							req.abort();
+						}
+					});
+				});
+			})();
+		}
+		return stream;
+	}
+
+	// expose global for apps without modules
+	window.fetchStream = fetchStream;
+	/* WEBPACK VAR INJECTION */}.call(exports, (function() { return this; }())))
+
+/***/ },
+/* 16 */
+/***/ function(module, exports, __webpack_require__) {
+
+	/* WEBPACK VAR INJECTION */(function(Buffer) {'use strict';
+
+	Object.defineProperty(exports, "__esModule", {
+		value: true
+	});
+	exports.default = makeParser;
 	var CR = '\r'.charCodeAt(0);
 	var LF = '\n'.charCodeAt(0);
 
+	var BUFFER = exports.BUFFER = 'BUFFER';
+	var UINT8ARRAY = exports.UINT8ARRAY = 'UINT8ARRAY';
+
 	/**
 	 * Makes UTF8 decoding function.
-	 * @param  {Boolean} [isBuffer] Specifies whether the input chunk will be of Buffer type.
+	 * @param  {Boolean} [chunkType] Specifies type of input chunks.
 	 * @return {Function} The function to decode byte chunks.
 	 */
-	function makeDecoder(isBuffer) {
-		if (isBuffer) {
-			return function (buf) {
-				return buf.toString('utf8');
-			};
+	function makeDecoder(chunkType) {
+		switch (chunkType) {
+			case BUFFER:
+				return function (buf) {
+					return buf.toString('utf8');
+				};
+			default:
+				var decoder = null;
+				return function (buf) {
+					if (!decoder) {
+						decoder = new TextDecoder();
+					}
+					return decoder.decode(buf);
+				};
 		}
-		var decoder = null;
-		return function (buf) {
-			if (!decoder) {
-				decoder = new TextDecoder();
-			}
-			return decoder.decode(buf);
-		};
 	}
 
 	/**
 	 * Makes function to concat two byte chunks.
-	 * @param  {Boolean} [isBuffer] Specifies whether the input chunk will be of Buffer type.
+	 * @param  {Boolean} [chunkType] Specifies type of input chunks.
 	 * @return {Function} The function to concat two byte chunks.
 	 */
-	function makeConcat(isBuffer) {
-		if (isBuffer) {
-			return function (a, b) {
-				return Buffer.concat([a, b]);
-			};
+	function makeConcat(chunkType) {
+		switch (chunkType) {
+			case BUFFER:
+				return function (a, b) {
+					return Buffer.concat([a, b]);
+				};
+			default:
+				return function (a, b) {
+					var t = new Uint8Array(a.length + b.length);
+					t.set(a);
+					t.set(b, a.length);
+					return t;
+				};
 		}
-		return function (a, b) {
-			var t = new Uint8Array(a.length + b.length);
-			t.set(a);
-			t.set(b, a.length);
-			return t;
-		};
 	}
 
 	/**
 	 * Makes parser function to process chunk stream.
 	 * @param  {Function} [callback] The function to process parsed text fragment.
-	 * @param  {Boolean}  [isBuffer] Specifies whether each chunk will be a Buffer object.
+	 * @param  {Boolean}  [chunkType] Specifies type of input chunks.
 	 */
-	function makeParser(callback, isBuffer) {
+	function makeParser(callback, chunkType) {
 		var prev = null;
 		var index = 0;
-		var decode = makeDecoder(isBuffer);
-		var concat = makeConcat(isBuffer);
+		var decode = makeDecoder(chunkType);
+		var concat = makeConcat(chunkType);
 		function parse(data) {
 			var chunk = data;
 			if (prev !== null) {
@@ -4484,7 +4600,7 @@
 
 			if (size === 0) {
 				// notify complete!
-				callback({ done: true }, index);
+				callback({ done: true, index: index });
 				return undefined;
 			}
 
@@ -4492,7 +4608,7 @@
 				var next = chunkSize < chunk.length ? chunk.slice(chunkSize) : null;
 				var head = chunk.slice(headerSize, size);
 				var text = decode(head);
-				if (callback(text, index++) === false) {
+				if (callback({ value: text, index: index++ }) === false) {
 					return false;
 				}
 				return next !== null ? parse(next) : undefined;
@@ -4503,65 +4619,16 @@
 		}
 		return parse;
 	}
-
-	// reads all chunks
-	function pump(reader, handler) {
-		reader.read().then(function (result) {
-			if (result.done) {
-				return;
-			}
-			if (handler(result.value) === false) {
-				// cancelling
-				return;
-			}
-			pump(reader, handler);
-		});
-	}
-
-	/**
-	 * Fetches resource stream.
-	 * @param  {object} [options] URL or options of request.
-	 * @param  {function} [callback] The callback to process each chunk in the stream.
-	 */
-	function fetchStream() {
-		var options = arguments.length <= 0 || arguments[0] === undefined ? {} : arguments[0];
-		var callback = arguments[1];
-
-		var url = typeof options === 'string' ? options : options.url || options.path;
-		if (supportFetch) {
-			// TODO support Request object?
-			var init = (typeof options === 'undefined' ? 'undefined' : _typeof(options)) === 'object' ? options : {};
-			fetch(url, init).then(function (res) {
-				pump(res.body.getReader(), makeParser(callback, false));
-			});
-		} else {
-			(function () {
-				var parser = makeParser(callback, true);
-				options.path = url;
-				var req = _streamHttp2.default.get(options, function (res) {
-					res.on('data', function (buf) {
-						if (parser(buf) === false) {
-							// cancelling
-							req.abort();
-						}
-					});
-				});
-			})();
-		}
-	}
-
-	// expose global for apps without modules
-	window.fetchStream = fetchStream;
-	/* WEBPACK VAR INJECTION */}.call(exports, (function() { return this; }()), __webpack_require__(1).Buffer))
+	/* WEBPACK VAR INJECTION */}.call(exports, __webpack_require__(1).Buffer))
 
 /***/ },
-/* 16 */
+/* 17 */
 /***/ function(module, exports, __webpack_require__) {
 
-	var ClientRequest = __webpack_require__(17)
-	var extend = __webpack_require__(20)
-	var statusCodes = __webpack_require__(19)
-	var url = __webpack_require__(36)
+	var ClientRequest = __webpack_require__(18)
+	var extend = __webpack_require__(21)
+	var statusCodes = __webpack_require__(20)
+	var url = __webpack_require__(37)
 
 	var http = exports
 
@@ -4634,13 +4701,13 @@
 	]
 
 /***/ },
-/* 17 */
+/* 18 */
 /***/ function(module, exports, __webpack_require__) {
 
 	/* WEBPACK VAR INJECTION */(function(Buffer, global, process) {// var Base64 = require('Base64')
 	var capability = __webpack_require__(9)
 	var inherits = __webpack_require__(10)
-	var response = __webpack_require__(18)
+	var response = __webpack_require__(19)
 	var stream = __webpack_require__(6)
 
 	var IncomingMessage = response.IncomingMessage
@@ -4916,7 +4983,7 @@
 	/* WEBPACK VAR INJECTION */}.call(exports, __webpack_require__(1).Buffer, (function() { return this; }()), __webpack_require__(3)))
 
 /***/ },
-/* 18 */
+/* 19 */
 /***/ function(module, exports, __webpack_require__) {
 
 	/* WEBPACK VAR INJECTION */(function(process, Buffer, global) {var capability = __webpack_require__(9)
@@ -5095,7 +5162,7 @@
 	/* WEBPACK VAR INJECTION */}.call(exports, __webpack_require__(3), __webpack_require__(1).Buffer, (function() { return this; }())))
 
 /***/ },
-/* 19 */
+/* 20 */
 /***/ function(module, exports) {
 
 	module.exports = {
@@ -5160,7 +5227,7 @@
 
 
 /***/ },
-/* 20 */
+/* 21 */
 /***/ function(module, exports) {
 
 	module.exports = extend
@@ -5185,7 +5252,7 @@
 
 
 /***/ },
-/* 21 */
+/* 22 */
 /***/ function(module, exports) {
 
 	module.exports = function(module) {
@@ -5201,7 +5268,7 @@
 
 
 /***/ },
-/* 22 */
+/* 23 */
 /***/ function(module, exports, __webpack_require__) {
 
 	var lookup = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/';
@@ -5331,7 +5398,7 @@
 
 
 /***/ },
-/* 23 */
+/* 24 */
 /***/ function(module, exports) {
 
 	exports.read = function (buffer, offset, isLE, mLen, nBytes) {
@@ -5421,7 +5488,7 @@
 
 
 /***/ },
-/* 24 */
+/* 25 */
 /***/ function(module, exports) {
 
 	var toString = {}.toString;
@@ -5432,14 +5499,14 @@
 
 
 /***/ },
-/* 25 */
+/* 26 */
 /***/ function(module, exports, __webpack_require__) {
 
 	module.exports = __webpack_require__(2)
 
 
 /***/ },
-/* 26 */
+/* 27 */
 /***/ function(module, exports) {
 
 	module.exports = Array.isArray || function (arr) {
@@ -5448,14 +5515,14 @@
 
 
 /***/ },
-/* 27 */
+/* 28 */
 /***/ function(module, exports, __webpack_require__) {
 
 	module.exports = __webpack_require__(12)
 
 
 /***/ },
-/* 28 */
+/* 29 */
 /***/ function(module, exports, __webpack_require__) {
 
 	exports = module.exports = __webpack_require__(13);
@@ -5468,21 +5535,21 @@
 
 
 /***/ },
-/* 29 */
+/* 30 */
 /***/ function(module, exports, __webpack_require__) {
 
 	module.exports = __webpack_require__(7)
 
 
 /***/ },
-/* 30 */
+/* 31 */
 /***/ function(module, exports, __webpack_require__) {
 
 	module.exports = __webpack_require__(8)
 
 
 /***/ },
-/* 31 */
+/* 32 */
 /***/ function(module, exports) {
 
 	if (typeof Object.create === 'function') {
@@ -5511,7 +5578,7 @@
 
 
 /***/ },
-/* 32 */
+/* 33 */
 /***/ function(module, exports, __webpack_require__) {
 
 	var __WEBPACK_AMD_DEFINE_RESULT__;/* WEBPACK VAR INJECTION */(function(module, global) {/*! https://mths.be/punycode v1.3.2 by @mathias */
@@ -6043,10 +6110,10 @@
 
 	}(this));
 
-	/* WEBPACK VAR INJECTION */}.call(exports, __webpack_require__(21)(module), (function() { return this; }())))
+	/* WEBPACK VAR INJECTION */}.call(exports, __webpack_require__(22)(module), (function() { return this; }())))
 
 /***/ },
-/* 33 */
+/* 34 */
 /***/ function(module, exports) {
 
 	// Copyright Joyent, Inc. and other Node contributors.
@@ -6132,7 +6199,7 @@
 
 
 /***/ },
-/* 34 */
+/* 35 */
 /***/ function(module, exports) {
 
 	// Copyright Joyent, Inc. and other Node contributors.
@@ -6202,17 +6269,17 @@
 
 
 /***/ },
-/* 35 */
+/* 36 */
 /***/ function(module, exports, __webpack_require__) {
 
 	'use strict';
 
-	exports.decode = exports.parse = __webpack_require__(33);
-	exports.encode = exports.stringify = __webpack_require__(34);
+	exports.decode = exports.parse = __webpack_require__(34);
+	exports.encode = exports.stringify = __webpack_require__(35);
 
 
 /***/ },
-/* 36 */
+/* 37 */
 /***/ function(module, exports, __webpack_require__) {
 
 	// Copyright Joyent, Inc. and other Node contributors.
@@ -6236,7 +6303,7 @@
 	// OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE
 	// USE OR OTHER DEALINGS IN THE SOFTWARE.
 
-	var punycode = __webpack_require__(32);
+	var punycode = __webpack_require__(33);
 
 	exports.parse = urlParse;
 	exports.resolve = urlResolve;
@@ -6308,7 +6375,7 @@
 	      'gopher:': true,
 	      'file:': true
 	    },
-	    querystring = __webpack_require__(35);
+	    querystring = __webpack_require__(36);
 
 	function urlParse(url, parseQueryString, slashesDenoteHost) {
 	  if (url && isObject(url) && url instanceof Url) return url;
@@ -6925,7 +6992,7 @@
 
 
 /***/ },
-/* 37 */
+/* 38 */
 /***/ function(module, exports) {
 
 	/* (ignored) */
