@@ -57,6 +57,7 @@ if (NODE_ENV === 'production') {
 		defines,
 		new webpack.optimize.UglifyJsPlugin({
 			beautify: true,
+			mangle: false,
 			comments: 'all',
 			compressor: {
 				warnings: false,
