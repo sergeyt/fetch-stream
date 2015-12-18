@@ -1,8 +1,7 @@
 import http from 'stream-http';
 import makeParser, { BUFFER } from './parser';
 
-function noop() {
-}
+function noop() {}
 
 function isFunction(value) {
 	return typeof value === 'function';
@@ -29,6 +28,7 @@ function makeStream() {
 	let cancelled = false;
 	let completed = false;
 	let commit = noop;
+	let rollback = noop;
 	return {
 		read() {
 			if (chunks.length > 0) {
@@ -38,10 +38,14 @@ function makeStream() {
 				return Promise.reject('eof');
 			}
 			// TODO prevent multiple calls?
-			return new Promise((resolve) => {
+			return new Promise((resolve, reject) => {
 				commit = () => {
 					commit = noop;
 					resolve(chunks.shift());
+				};
+				rollback = (err) => {
+					rollback = noop;
+					reject(err);
 				};
 			});
 		},
@@ -50,8 +54,13 @@ function makeStream() {
 			cancelled = true;
 		},
 
-		handler(chunk) {
+		handler(chunk, err) {
 			if (cancelled) return cancelled;
+			if (err) {
+				completed = true;
+				rollback(err);
+				return false;
+			}
 			completed = !!chunk.done;
 			chunks.push(chunk);
 			commit();
@@ -59,8 +68,6 @@ function makeStream() {
 		},
 	};
 }
-
-// TODO error handling
 
 /**
  * Fetches resource stream.
@@ -79,17 +86,36 @@ export default function fetchStream(options = {}, callback) {
 		// TODO support Request object?
 		const init = typeof options === 'object' ? options : {};
 		fetch(url, init).then((res) => {
-			pump(res.body.getReader(), makeParser(cb));
+			if (res.status >= 200 && res.status < 300) {
+				pump(res.body.getReader(), makeParser(cb));
+			} else {
+				// TODO read custom error payload
+				cb(null, { status: res.status, statusText: res.statusText });
+			}
+		}, (err) => {
+			cb(null, err);
 		});
 	} else {
 		const parser = makeParser(cb, BUFFER);
 		options.path = url;
 		const req = http.get(options, (res) => {
+			const status = res.status || res.statusCode;
+			if (!(status >= 200 && status < 300)) {
+				// TODO read custom error payload
+				cb(null, { status, statusText: res.statusText || res.statusMessage });
+				return;
+			}
+
 			res.on('data', (buf) => {
 				if (parser(buf) === false) {
 					// cancelling
 					req.abort();
 				}
+			});
+
+			res.on('error', err => {
+				req.abort();
+				cb(null, err);
 			});
 		});
 	}
@@ -98,3 +124,6 @@ export default function fetchStream(options = {}, callback) {
 
 // expose global for apps without modules
 window.fetchStream = fetchStream;
+
+// export parser for any reuse
+export { makeParser };

@@ -22,6 +22,12 @@ function rnd(min, max) {
 	return Math.floor(Math.random() * (max - min + 1)) + min;
 }
 
+app.get('/error', (req, res) => {
+	res.status(500).send({
+		error: 'bang',
+	});
+});
+
 app.get('/stream', (req, res) => {
 	res.writeHead(200, {
 		'Content-Type': 'text/html',

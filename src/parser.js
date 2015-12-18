@@ -61,6 +61,7 @@ export default function makeParser(callback, chunkType) {
 
 	const STATE_HEADER = 0;
 	const STATE_BODY = 1;
+	const STATE_ERROR = 2;
 
 	let index = 0;
 	let state = STATE_HEADER;
@@ -75,8 +76,9 @@ export default function makeParser(callback, chunkType) {
 		for (; i < chunk.length; i++) {
 			if (expectLF) {
 				if (chunk[i] !== LF) {
-					// raise error!
-					console.log('bang');
+					state = STATE_ERROR;
+					callback(null, new Error('bad format'));
+					return -1;
 				}
 				expectLF = false;
 				if (header.length === 0) {
@@ -95,6 +97,9 @@ export default function makeParser(callback, chunkType) {
 
 	function parse(chunk) {
 		switch (state) {
+		case STATE_ERROR:
+			throw new Error('unexpected call after error');
+
 		case STATE_HEADER:
 			const headerSize = readHeader(chunk);
 			if (headerSize < 0) {

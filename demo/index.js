@@ -2,7 +2,11 @@ import fetch from '../src';
 
 const useCallback = false;
 
-const handler = (result) => {
+const handler = (result, err) => {
+	if (err) {
+		console.log(err);
+		return false;
+	}
 	if (result.done) {
 		console.log('completed');
 		return false;
@@ -10,10 +14,13 @@ const handler = (result) => {
 	const doc = $('<div/>');
 	doc.html(result.value);
 	doc.appendTo($('#root'));
-	return result.index < 50;
+	return result.index < 10;
 };
 
 $(() => {
+	fetch('/error', handler);
+	fetch('/deadpoint', handler);
+
 	if (useCallback) {
 		fetch('/stream', handler);
 	} else {
