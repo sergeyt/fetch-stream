@@ -1,10 +1,22 @@
+export const BUFFER = 'BUFFER';
+export const BYTEARRAY = 'BYTEARRAY';
+
 const isnode = typeof module !== 'undefined' && module.exports;
 
 const CR = '\r'.charCodeAt(0);
 const LF = '\n'.charCodeAt(0);
+const D0 = '0'.charCodeAt(0);
+const D9 = '9'.charCodeAt(0);
+const LA = 'a'.charCodeAt(0);
+const LZ = 'z'.charCodeAt(0);
+const UA = 'A'.charCodeAt(0);
+const UZ = 'Z'.charCodeAt(0);
 
-export const BUFFER = 'BUFFER';
-export const BYTEARRAY = 'BYTEARRAY';
+const errBadFormat = 'bad format';
+
+function ishex(c) {
+	return (c >= D0 && c <= D9) || (c >= LA && c <= LZ) || (c >= UA && c <= UZ);
+}
 
 /**
  * Makes UTF8 decoding function.
@@ -74,23 +86,31 @@ export default function makeParser(callback, chunkType) {
 		// read header line until CRLF
 		let i = 0;
 		for (; i < chunk.length; i++) {
+			const c = chunk[i];
 			if (expectLF) {
-				if (chunk[i] !== LF) {
+				if (c !== LF) {
 					state = STATE_ERROR;
-					callback(null, new Error('bad format'));
+					callback(null, new Error(errBadFormat));
 					return -1;
 				}
 				expectLF = false;
 				if (header.length === 0) {
+					// end of chunk!
 					continue;
 				}
 				return i + 1;
 			}
-			if (chunk[i] === CR) {
+			if (c === CR) {
 				expectLF = true;
-			} else {
-				header += String.fromCharCode(chunk[i]);
+				continue;
 			}
+			// expect at start size of block in hex
+			if (header.length === 0 && !ishex(c)) {
+				state = STATE_ERROR;
+				callback(null, errBadFormat);
+				return -1;
+			}
+			header += String.fromCharCode(c);
 		}
 		return -1;
 	}

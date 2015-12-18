@@ -1,7 +1,7 @@
 process.env.UV_THREADPOOL_SIZE = 100;
 
 const express = require('express');
-const randomWords = require('random-words');
+const faker = require('faker');
 const webpack = require('webpack');
 const config = require('./webpack.config');
 
@@ -18,10 +18,6 @@ app.use(require('webpack-dev-middleware')(compiler, {
 
 app.use(require('webpack-hot-middleware')(compiler));
 
-function rnd(min, max) {
-	return Math.floor(Math.random() * (max - min + 1)) + min;
-}
-
 app.get('/error', (req, res) => {
 	res.status(500).send({
 		error: 'bang',
@@ -36,7 +32,7 @@ app.get('/stream', (req, res) => {
 	});
 
 	function chunk(i) {
-		const text = randomWords(rnd(100, 500));
+		const text = faker.lorem.paragraph();
 		const html = `<html><h1>chunk #${i}</h1><p>${text}</p></html>`;
 		const data = `00${html.length.toString(16)};name=value\r\n${html}\r\n`;
 		res.write(data);

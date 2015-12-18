@@ -2338,24 +2338,26 @@ function(module, exports, __webpack_require__) {
             });
         }
         function makeStream() {
-            var chunks = [], cancelled = !1, completed = !1, commit = noop;
+            var chunks = [], cancelled = !1, completed = !1, commit = noop, rollback = noop;
             return {
                 read: function() {
-                    return chunks.length > 0 ? Promise.resolve(chunks.shift()) : completed ? Promise.reject("eof") : new Promise(function(resolve) {
+                    return chunks.length > 0 ? Promise.resolve(chunks.shift()) : completed ? Promise.reject("eof") : new Promise(function(resolve, reject) {
                         commit = function() {
                             commit = noop, resolve(chunks.shift());
+                        }, rollback = function(err) {
+                            rollback = noop, reject(err);
                         };
                     });
                 },
                 cancel: function() {
                     cancelled = !0;
                 },
-                handler: function(chunk) {
-                    return cancelled ? cancelled : (completed = !!chunk.done, chunks.push(chunk), void commit());
+                handler: function(chunk, err) {
+                    return cancelled ? cancelled : err ? (completed = !0, rollback(err), !1) : (completed = !!chunk.done, 
+                    chunks.push(chunk), void commit());
                 }
             };
         }
-        // TODO error handling
         /**
 	 * Fetches resource stream.
 	 * @param  {object} [options] URL or options of request.
@@ -2369,15 +2371,27 @@ function(module, exports, __webpack_require__) {
                 // TODO support Request object?
                 var init = "object" === ("undefined" == typeof options ? "undefined" : _typeof(options)) ? options : {};
                 fetch(url, init).then(function(res) {
-                    pump(res.body.getReader(), (0, _parser2["default"])(cb));
+                    res.status >= 200 && res.status < 300 ? pump(res.body.getReader(), (0, _parser2["default"])(cb)) : cb(null, {
+                        status: res.status,
+                        statusText: res.statusText
+                    });
+                }, function(err) {
+                    cb(null, err);
                 });
             } else !function() {
                 var parser = (0, _parser2["default"])(cb, _parser.BUFFER);
                 options.path = url;
                 var req = _streamHttp2["default"].get(options, function(res) {
-                    res.on("data", function(buf) {
+                    var status = res.status || res.statusCode;
+                    // TODO read custom error payload
+                    return status >= 200 && 300 > status ? (res.on("data", function(buf) {
                         parser(buf) === !1 && // cancelling
                         req.abort();
+                    }), void res.on("error", function(err) {
+                        req.abort(), cb(null, err);
+                    })) : void cb(null, {
+                        status: status,
+                        statusText: res.statusText || res.statusMessage
                     });
                 });
             }();
@@ -2385,10 +2399,11 @@ function(module, exports, __webpack_require__) {
         }
         Object.defineProperty(exports, "__esModule", {
             value: !0
-        }), exports["default"] = fetchStream;
+        }), exports.makeParser = void 0, exports["default"] = fetchStream;
         var _streamHttp = __webpack_require__(17), _streamHttp2 = _interopRequireDefault(_streamHttp), _parser = __webpack_require__(16), _parser2 = _interopRequireDefault(_parser), supportFetch = isFunction(global.fetch) && isFunction(global.ReadableByteStream);
         // expose global for apps without modules
-        window.fetchStream = fetchStream;
+        window.fetchStream = fetchStream, // export parser for any reuse
+        exports.makeParser = _parser2["default"];
     }).call(exports, function() {
         return this;
     }());
@@ -2398,6 +2413,9 @@ function(module, exports, __webpack_require__) {
     /* WEBPACK VAR INJECTION */
     (function(Buffer) {
         "use strict";
+        function ishex(c) {
+            return c >= D0 && D9 >= c || c >= LA && LZ >= c || c >= UA && UZ >= c;
+        }
         /**
 	 * Makes UTF8 decoding function.
 	 * @param  {Boolean} [chunkType] Specifies type of input chunks.
@@ -2450,17 +2468,28 @@ function(module, exports, __webpack_require__) {
             function readHeader(chunk) {
                 for (// read header line until CRLF
                 var i = 0; i < chunk.length; i++) {
+                    var c = chunk[i];
                     if (expectLF) {
-                        if (chunk[i] !== LF && // raise error!
-                        console.log("bang"), expectLF = !1, 0 === header.length) continue;
+                        if (c !== LF) return state = STATE_ERROR, callback(null, new Error(errBadFormat)), 
+                        -1;
+                        if (expectLF = !1, 0 === header.length) // end of chunk!
+                        continue;
                         return i + 1;
                     }
-                    chunk[i] === CR ? expectLF = !0 : header += String.fromCharCode(chunk[i]);
+                    if (c !== CR) {
+                        // expect at start size of block in hex
+                        if (0 === header.length && !ishex(c)) return state = STATE_ERROR, callback(null, errBadFormat), 
+                        -1;
+                        header += String.fromCharCode(c);
+                    } else expectLF = !0;
                 }
                 return -1;
             }
             function parse(chunk) {
                 switch (state) {
+                  case STATE_ERROR:
+                    throw new Error("unexpected call after error");
+
                   case STATE_HEADER:
                     var headerSize = readHeader(chunk);
                     if (0 > headerSize) return;
@@ -2490,14 +2519,14 @@ function(module, exports, __webpack_require__) {
                     parse(chunk.slice(h.length)));
                 }
             }
-            var decode = makeDecoder(chunkType), concat = makeConcat(chunkType), STATE_HEADER = 0, STATE_BODY = 1, index = 0, state = STATE_HEADER, header = "", body = null, bodySize = 0, expectLF = !1;
+            var decode = makeDecoder(chunkType), concat = makeConcat(chunkType), STATE_HEADER = 0, STATE_BODY = 1, STATE_ERROR = 2, index = 0, state = STATE_HEADER, header = "", body = null, bodySize = 0, expectLF = !1;
             return parse;
         }
         Object.defineProperty(exports, "__esModule", {
             value: !0
         }), exports["default"] = makeParser;
-        var isnode = "undefined" != typeof module && module.exports, CR = "\r".charCodeAt(0), LF = "\n".charCodeAt(0), BUFFER = exports.BUFFER = "BUFFER";
-        exports.BYTEARRAY = "BYTEARRAY";
+        var BUFFER = exports.BUFFER = "BUFFER", isnode = (exports.BYTEARRAY = "BYTEARRAY", 
+        "undefined" != typeof module && module.exports), CR = "\r".charCodeAt(0), LF = "\n".charCodeAt(0), D0 = "0".charCodeAt(0), D9 = "9".charCodeAt(0), LA = "a".charCodeAt(0), LZ = "z".charCodeAt(0), UA = "A".charCodeAt(0), UZ = "Z".charCodeAt(0), errBadFormat = "bad format";
     }).call(exports, __webpack_require__(1).Buffer);
 }, /* 17 */
 /***/

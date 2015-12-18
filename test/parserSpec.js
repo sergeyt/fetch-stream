@@ -2,6 +2,7 @@
 import makeParser from '../src/parser';
 import expect from 'expect.js';
 import SmartBuffer from 'smart-buffer';
+import faker from 'faker';
 
 function makeArray(buf, start, end) {
 	const ab = new ArrayBuffer(end - start);
@@ -12,10 +13,18 @@ function makeArray(buf, start, end) {
 	return view;
 }
 
-function makeChunks(n = 3, size = 16) {
-	const buf = new SmartBuffer();
+function makeTextChunks(n = 3) {
+	const arr = [];
 	for (let i = 0; i < n; i++) {
-		const t = `chunk${i + 1}`;
+		arr.push(faker.lorem.words().join(', '));
+	}
+	return arr;
+}
+
+function makeChunks(input, size = 16) {
+	const buf = new SmartBuffer();
+	for (let i = 0; i < input.length; i++) {
+		const t = input[i];
 		buf.writeString(`00${t.length.toString(16)};key=value\r\n${t}\r\n`);
 	}
 	buf.writeString('0\r\n\r\n');
@@ -30,21 +39,27 @@ function makeChunks(n = 3, size = 16) {
 
 function basicTest(n, size) {
 	const chunks = [];
-	const parser = makeParser(d => {
+	const parser = makeParser((d, err) => {
+		if (err) {
+			console.log(err);
+			return;
+		}
 		if (d.done) {
 			return;
 		}
 		chunks.push(d.value);
 	});
 
-	makeChunks(n, size).forEach(d => {
+	const input = makeTextChunks(n);
+
+	makeChunks(input, size).forEach(d => {
 		parser(d);
 	});
 
 	expect(chunks.length).to.be(n);
 
 	for (let i = 0; i < n; i++) {
-		expect(chunks[i]).to.be(`chunk${i + 1}`);
+		expect(chunks[i]).to.be(input[i]);
 	}
 }
 
@@ -69,16 +84,4 @@ describe('parser', () => {
 // ava tests
 // test(function chunks3size4(t) {
 // 	basicTest(t, 3, 4);
-// });
-//
-// test(function chunks3size8(t) {
-// 	basicTest(t, 3, 8);
-// });
-//
-// test(function chunks3size11(t) {
-// 	basicTest(t, 3, 11);
-// });
-//
-// test(function chunks3size16(t) {
-// 	basicTest(t, 3, 16);
 // });
