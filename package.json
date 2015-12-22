@@ -8,7 +8,9 @@
     "lint": "eslint --ext .js src",
     "babel": "babel src --out-dir lib",
     "pack": "webpack --config webpack.config.js",
-    "test": "npm run lint && istanbul cover ./node_modules/mocha/bin/_mocha --report lcovonly && codecov"
+    "coverage": "babel-node -r node_modules/isparta/lib/cli cover --root src --include-all-sources --report lcov --report html node_modules/mocha/bin/_mocha -- test",
+    "coverage-check": "node node_modules/isparta/node_modules/istanbul/lib/cli check-coverage --statements 100 --functions 100 --branches 100 --lines 100",
+    "test": "npm run lint && npm run coverage | codecov"
   },
   "repository": {
     "type": "git",
@@ -29,6 +31,7 @@
   "devDependencies": {
     "ava": "^0.8.0",
     "babel": "^6.3.13",
+    "babel-cli": "^6.3.17",
     "babel-core": "^6.3.21",
     "babel-eslint": "^5.0.0-beta6",
     "babel-loader": "^6.2.0",
@@ -40,7 +43,7 @@
     "expect.js": "^0.3.1",
     "express": "^4.13.3",
     "faker": "^3.0.1",
-    "istanbul": "^0.4.1",
+    "isparta": "^4.0.0",
     "jquery": "^2.1.4",
     "mocha": "^2.3.4",
     "smart-buffer": "^1.0.3",
