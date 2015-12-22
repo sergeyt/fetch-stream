@@ -1,4 +1,5 @@
 [![Build Status](https://travis-ci.org/sergeyt/fetch-stream.svg)](https://travis-ci.org/sergeyt/fetch-stream)
+[![codecov.io](https://codecov.io/github/sergeyt/fetch-stream/coverage.svg?branch=master)](https://codecov.io/github/sergeyt/fetch-stream?branch=master)
 
 # fetch-stream
 
