@@ -1,4 +1,3 @@
-// import test from 'ava';
 import makeParser from '../src/parser';
 import expect from 'expect.js';
 import SmartBuffer from 'smart-buffer';
@@ -80,8 +79,3 @@ describe('parser', () => {
 		basicTest(3, 16);
 	});
 });
-
-// ava tests
-// test(function chunks3size4(t) {
-// 	basicTest(t, 3, 4);
-// });
