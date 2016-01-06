@@ -2379,9 +2379,9 @@ function(module, exports, __webpack_require__) {
                     cb(null, err);
                 });
             } else !function() {
-                var parser = (0, _parser2["default"])(cb, _parser.BUFFER);
-                options.path = url;
-                var req = _streamHttp2["default"].get(options, function(res) {
+                var parser = (0, _parser2["default"])(cb, _parser.BUFFER), opts = "object" === ("undefined" == typeof options ? "undefined" : _typeof(options)) ? _extends({}, options) : {};
+                opts.path = url;
+                var req = _streamHttp2["default"].get(opts, function(res) {
                     var status = res.status || res.statusCode;
                     // TODO read custom error payload
                     return status >= 200 && 300 > status ? (res.on("data", function(buf) {
@@ -2397,6 +2397,13 @@ function(module, exports, __webpack_require__) {
             }();
             return stream;
         }
+        var _extends = Object.assign || function(target) {
+            for (var i = 1; i < arguments.length; i++) {
+                var source = arguments[i];
+                for (var key in source) Object.prototype.hasOwnProperty.call(source, key) && (target[key] = source[key]);
+            }
+            return target;
+        };
         Object.defineProperty(exports, "__esModule", {
             value: !0
         }), exports.makeParser = void 0, exports["default"] = fetchStream;

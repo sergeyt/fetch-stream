@@ -97,8 +97,9 @@ export default function fetchStream(options = {}, callback) {
 		});
 	} else {
 		const parser = makeParser(cb, BUFFER);
-		options.path = url;
-		const req = http.get(options, (res) => {
+		const opts = typeof options === 'object' ? { ...options } : { };
+		opts.path = url;
+		const req = http.get(opts, (res) => {
 			const status = res.status || res.statusCode;
 			if (!(status >= 200 && status < 300)) {
 				// TODO read custom error payload
