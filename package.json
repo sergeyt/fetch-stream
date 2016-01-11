@@ -39,20 +39,20 @@
     "babel-preset-stage-0": "^6.3.13",
     "codecov.io": "^0.1.6",
     "eslint": "^1.10.3",
-    "eslint-config-airbnb": "^3.0.2",
+    "eslint-config-airbnb": "^3.1.0",
     "eslint-plugin-react": "^3.14.0",
     "expect.js": "^0.3.1",
     "express": "^4.13.3",
     "faker": "^3.0.1",
     "isparta": "^4.0.0",
-    "jquery": "^2.1.4",
+    "jquery": "^2.2.0",
     "mocha": "^2.3.4",
     "smart-buffer": "^1.0.3",
-    "webpack": "^1.12.10",
+    "webpack": "^1.12.11",
     "webpack-dev-middleware": "^1.4.0",
     "webpack-hot-middleware": "^2.6.0"
   },
   "dependencies": {
-    "stream-http": "^2.0.2"
+    "stream-http": "^2.0.5"
   }
 }
