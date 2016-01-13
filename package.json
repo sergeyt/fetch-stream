@@ -1,6 +1,6 @@
 {
   "name": "fetch-stream",
-  "version": "0.6.3",
+  "version": "0.6.4",
   "description": "Easy fetch of HTTP/1.1 chunked content.",
   "main": "lib/index.js",
   "scripts": {
