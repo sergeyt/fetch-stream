@@ -1872,7 +1872,7 @@ function(module, exports, __webpack_require__) {
         var Stream = __webpack_require__(6), util = __webpack_require__(4);
         util.inherits = __webpack_require__(2);
         /*</replacement>*/
-        var StringDecoder, debug = __webpack_require__(36);
+        var StringDecoder, debug = __webpack_require__(37);
         debug = debug && debug.debuglog ? debug.debuglog("stream") : function() {}, util.inherits(Readable, Stream), 
         Readable.prototype.push = function(chunk, encoding) {
             var state = this._readableState;
@@ -2811,7 +2811,7 @@ function(module, exports, __webpack_require__) {
 function(module, exports, __webpack_require__) {
     /* WEBPACK VAR INJECTION */
     (function(global) {
-        var ClientRequest = __webpack_require__(30), extend = __webpack_require__(35), statusCodes = __webpack_require__(18), url = __webpack_require__(33), http = exports;
+        var ClientRequest = __webpack_require__(30), extend = __webpack_require__(36), statusCodes = __webpack_require__(18), url = __webpack_require__(34), http = exports;
         http.request = function(opts, cb) {
             opts = "string" == typeof opts ? url.parse(opts) : extend(opts);
             // Normally, the page is loaded from http or https, so not specifying a protocol
@@ -2855,7 +2855,7 @@ function(module, exports, __webpack_require__) {
             }
         }
         // var Base64 = require('Base64')
-        var capability = __webpack_require__(12), inherits = __webpack_require__(2), response = __webpack_require__(31), stream = __webpack_require__(6), IncomingMessage = response.IncomingMessage, rStates = response.readyStates, ClientRequest = module.exports = function(opts) {
+        var capability = __webpack_require__(12), inherits = __webpack_require__(2), response = __webpack_require__(31), stream = __webpack_require__(6), toArrayBuffer = __webpack_require__(32), IncomingMessage = response.IncomingMessage, rStates = response.readyStates, ClientRequest = module.exports = function(opts) {
             var self = this;
             stream.Writable.call(self), self._opts = opts, self._body = [], self._headers = {}, 
             opts.auth && self.setHeader("Authorization", "Basic " + new Buffer(opts.auth).toString("base64")), 
@@ -2895,7 +2895,7 @@ function(module, exports, __webpack_require__) {
             if (!self._destroyed) {
                 var body, opts = self._opts, headersObj = self._headers;
                 if (("POST" === opts.method || "PUT" === opts.method || "PATCH" === opts.method) && (body = capability.blobConstructor ? new global.Blob(self._body.map(function(buffer) {
-                    return buffer.toArrayBuffer();
+                    return toArrayBuffer(buffer);
                 }), {
                     type: (headersObj["content-type"] || {}).value || ""
                 }) : Buffer.concat(self._body).toString()), "fetch" === self._mode) {
@@ -3093,6 +3093,24 @@ function(module, exports, __webpack_require__) {
         return this;
     }());
 }, /* 32 */
+/***/
+function(module, exports, __webpack_require__) {
+    var Buffer = __webpack_require__(1).Buffer;
+    module.exports = function(buf) {
+        // If the buffer is backed by a Uint8Array, a faster version will work
+        if (buf instanceof Uint8Array) {
+            // If the buffer isn't a subarray, return the underlying ArrayBuffer
+            if (0 === buf.byteOffset && buf.byteLength === buf.buffer.byteLength) return buf.buffer;
+            if ("function" == typeof buf.buffer.slice) // Otherwise we need to get a proper copy
+            return buf.buffer.slice(buf.byteOffset, buf.byteOffset + buf.byteLength);
+        }
+        if (Buffer.isBuffer(buf)) {
+            for (var arrayCopy = new Uint8Array(buf.length), len = buf.length, i = 0; len > i; i++) arrayCopy[i] = buf[i];
+            return arrayCopy.buffer;
+        }
+        throw new Error("Argument must be a Buffer");
+    };
+}, /* 33 */
 /***/
 function(module, exports, __webpack_require__) {
     var __WEBPACK_AMD_DEFINE_RESULT__;
@@ -3361,10 +3379,10 @@ function(module, exports, __webpack_require__) {
                 return punycode;
             }.call(exports, __webpack_require__, exports, module), !(void 0 !== __WEBPACK_AMD_DEFINE_RESULT__ && (module.exports = __WEBPACK_AMD_DEFINE_RESULT__));
         }(this);
-    }).call(exports, __webpack_require__(34)(module), function() {
+    }).call(exports, __webpack_require__(35)(module), function() {
         return this;
     }());
-}, /* 33 */
+}, /* 34 */
 /***/
 function(module, exports, __webpack_require__) {
     function Url() {
@@ -3423,7 +3441,7 @@ function(module, exports, __webpack_require__) {
     // DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR
     // OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE
     // USE OR OTHER DEALINGS IN THE SOFTWARE.
-    var punycode = __webpack_require__(32);
+    var punycode = __webpack_require__(33);
     exports.parse = urlParse, exports.resolve = urlResolve, exports.resolveObject = urlResolveObject, 
     exports.format = urlFormat, exports.Url = Url;
     // Reference: RFC 3986, RFC 1808, RFC 2396
@@ -3687,7 +3705,7 @@ function(module, exports, __webpack_require__) {
         port && (port = port[0], ":" !== port && (this.port = port.substr(1)), host = host.substr(0, host.length - port.length)), 
         host && (this.hostname = host);
     };
-}, /* 34 */
+}, /* 35 */
 /***/
 function(module, exports) {
     module.exports = function(module) {
@@ -3695,7 +3713,7 @@ function(module, exports) {
         return module.webpackPolyfill || (module.deprecate = function() {}, module.paths = [], 
         module.children = [], module.webpackPolyfill = 1), module;
     };
-}, /* 35 */
+}, /* 36 */
 /***/
 function(module, exports) {
     function extend() {
@@ -3707,6 +3725,6 @@ function(module, exports) {
     }
     module.exports = extend;
     var hasOwnProperty = Object.prototype.hasOwnProperty;
-}, /* 36 */
+}, /* 37 */
 /***/
 function(module, exports) {} ]);
