@@ -40,7 +40,7 @@
     "codecov.io": "^0.1.6",
     "eslint": "^1.10.3",
     "eslint-config-airbnb": "^3.1.0",
-    "eslint-plugin-react": "^3.14.0",
+    "eslint-plugin-react": "^3.15.0",
     "expect.js": "^0.3.1",
     "express": "^4.13.3",
     "faker": "^3.0.1",
@@ -53,6 +53,6 @@
     "webpack-hot-middleware": "^2.6.0"
   },
   "dependencies": {
-    "stream-http": "^2.0.5"
+    "stream-http": "^2.1.0"
   }
 }
