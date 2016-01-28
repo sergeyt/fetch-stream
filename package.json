@@ -46,7 +46,7 @@
     "faker": "^3.0.1",
     "isparta": "^4.0.0",
     "jquery": "^2.2.0",
-    "mocha": "^2.3.4",
+    "mocha": "^2.4.4",
     "smart-buffer": "^1.0.3",
     "webpack": "^1.12.12",
     "webpack-dev-middleware": "^1.5.1",
