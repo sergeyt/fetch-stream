@@ -2415,21 +2415,16 @@ function(module, exports, __webpack_require__) {
 	 * @return {Function} The function to decode byte chunks.
 	 */
         function makeDecoder(chunkType) {
-            switch (chunkType) {
-              case BUFFER:
-                return function(buf) {
-                    return buf.toString("utf8");
-                };
-
-              default:
-                if (isnode) return function(a) {
-                    return new Buffer(a).toString("utf8");
-                };
-                var decoder = null;
-                return function(buf) {
-                    return decoder || (decoder = new TextDecoder()), decoder.decode(buf);
-                };
-            }
+            if (chunkType === BUFFER) return function(buf) {
+                return buf.toString("utf8");
+            };
+            if (isnode) return function(a) {
+                return new Buffer(a).toString("utf8");
+            };
+            var decoder = null;
+            return function(buf) {
+                return decoder || (decoder = new TextDecoder()), decoder.decode(buf);
+            };
         }
         /**
 	 * Makes function to concat two byte chunks.

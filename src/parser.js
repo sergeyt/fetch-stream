@@ -24,21 +24,19 @@ function ishex(c) {
  * @return {Function} The function to decode byte chunks.
  */
 function makeDecoder(chunkType) {
-	switch (chunkType) {
-	case BUFFER:
-		return (buf) => buf.toString('utf8');
-	default:
-		if (isnode) {
-			return a => new Buffer(a).toString('utf8');
-		}
-		let decoder = null;
-		return (buf) => {
-			if (!decoder) {
-				decoder = new TextDecoder();
-			}
-			return decoder.decode(buf);
-		};
+	if (chunkType === BUFFER) {
+		return buf => buf.toString('utf8');
 	}
+	if (isnode) {
+		return a => new Buffer(a).toString('utf8');
+	}
+	let decoder = null;
+	return (buf) => {
+		if (!decoder) {
+			decoder = new TextDecoder();
+		}
+		return decoder.decode(buf);
+	};
 }
 
 /**
@@ -120,7 +118,7 @@ export default function makeParser(callback, chunkType) {
 		case STATE_ERROR:
 			throw new Error('unexpected call after error');
 
-		case STATE_HEADER:
+		case STATE_HEADER: {
 			const headerSize = readHeader(chunk);
 			if (headerSize < 0) {
 				return undefined;
@@ -149,9 +147,10 @@ export default function makeParser(callback, chunkType) {
 
 			header = '';
 			return chunkSize < chunk.length ? parse(chunk.slice(chunkSize)) : undefined;
+		}
 
 			// incomplete body
-		default:
+		default: {
 			if (body.length + chunk.length < bodySize) {
 				body = concat(body, chunk);
 				return undefined;
@@ -168,6 +167,7 @@ export default function makeParser(callback, chunkType) {
 			body = null;
 			bodySize = 0;
 			return parse(chunk.slice(h.length));
+		}
 		}
 	}
 	return parse;
